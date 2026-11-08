@@ -1,0 +1,9 @@
+version: 2
+sources:
+  - name: raw
+    database: raw_db
+    schema: raw_db
+    tables:
+      - name: customers
+      - name: orders
+      - name: payments

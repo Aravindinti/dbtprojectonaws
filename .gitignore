@@ -1,0 +1,9 @@
+.venv/
+target/
+dbt_packages/
+logs/
+.user.yml
+.env
+env.ps1
+__pycache__/
+airflow/logs/
