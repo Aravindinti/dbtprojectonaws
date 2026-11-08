@@ -7,6 +7,7 @@ models:
         data_tests:
           - unique
           - not_null
+          - is_pk_negative
   - name: bronze_orders #  Second Level Config for models ( Must match the filename of a model -- including case sensitivity.
     config:
       materialized: table
@@ -15,6 +16,7 @@ models:
         data_tests:
           - unique
           - not_null
+          - is_pk_negative
       - name: status
         data_tests:
           - accepted_values:
