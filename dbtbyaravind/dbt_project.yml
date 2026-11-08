@@ -35,3 +35,4 @@ models:
     #first level of assign config for models
     bronze:
       +materialized: table
+      +schema: bronze

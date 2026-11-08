@@ -1,4 +1,24 @@
 models:
   - name: bronze_customers #  Second Level Config for models ( Must match the filename of a model -- including case sensitivity.
     config:
-      materialized: view
+      materialized: table
+    columns: 
+      - name: id
+        data_tests:
+          - unique
+          - not_null
+  - name: bronze_orders #  Second Level Config for models ( Must match the filename of a model -- including case sensitivity.
+    config:
+      materialized: table
+    columns: 
+      - name: id
+        data_tests:
+          - unique
+          - not_null
+      - name: status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [ 'completed', 'return_pending']
+              config:
+                severity: warn
