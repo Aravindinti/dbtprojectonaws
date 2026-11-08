@@ -1,0 +1,17 @@
+dbtbyaravind:
+  target: dev
+  outputs:
+    dev:
+      type: glue
+      role_arn: arn:aws:iam::945488516474:role/AWSglueservicerolefordbt
+      region: us-east-1
+      glue_version: "4.0"
+      workers: 4
+      worker_type: G.1X
+      idle_timeout: 10
+      schema: dbt_dev
+      database: dbt_dev
+      session_provisioning_timeout_in_seconds: 180
+      location: s3://my-dbt-lab-aravind/dbt/
+      conf: >-
+        --conf spark.sql.legacy.allowNonEmptyLocationInCTAS=true
