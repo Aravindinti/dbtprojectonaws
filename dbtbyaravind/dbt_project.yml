@@ -36,3 +36,11 @@ models:
     bronze:
       +materialized: table
       +schema: bronze
+
+    myprojectonbronze:
+      +materialized: table
+      +schema: bronze_test
+
+seeds:
+  dbtbyaravind:
+    +schema: bronze

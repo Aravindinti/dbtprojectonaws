@@ -1,4 +1,5 @@
 version: 2
+
 sources:
   - name: raw
     database: raw_db
@@ -7,3 +8,21 @@ sources:
       - name: customers
       - name: orders
       - name: payments
+
+  - name: raw_source_freshness
+    schema: raw_source_freshness
+    config:
+      loaded_at_field: _loaded_at
+      freshness:
+        warn_after: {count: 6, period: hour}
+        error_after: {count: 24, period: hour}
+    tables:
+      - name: orders
+      - name: customers
+        config:
+          freshness:
+            warn_after: {count: 1, period: day}
+            error_after: {count: 2, period: day}
+      - name: country_codes
+        config:
+          freshness: null
