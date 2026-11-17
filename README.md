@@ -491,17 +491,19 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 USER airflow
-COPY requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+ARG AIRFLOW_VERSION=2.9.3
+ARG PYTHON_VERSION=3.11
+RUN pip install --no-cache-dir \
+    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt" \
+    "astronomer-cosmos==1.10.2" \
+    dbt-core \
+    dbt-glue
 ```
 
-`git` is installed because the Airflow image does not include it, and `dbt debug` reports `git [ERROR]` without it (and `dbt deps` fails for git-based packages). Copy the pinned requirements next to the Dockerfile:
-
-```powershell
-copy ..\requirements.txt .\requirements.txt
-```
-
-(Or replace the `COPY`/`pip install` lines with `RUN pip install --no-cache-dir dbt-core dbt-glue`.)
+`git` is installed because the Airflow image does not include it, and `dbt debug`
+reports `git [ERROR]` without it (and `dbt deps` fails for git-based packages).
+Cosmos is pinned, and the Airflow constraints file protects the image's Airflow
+dependency versions during package installation.
 
 ### 10.3 Edit `docker-compose.yaml`
 
@@ -566,42 +568,42 @@ docker compose exec airflow-scheduler ls /opt/airflow/dbt/dbtbyaravind
 
 An empty folder means the host path `..\dbtbyaravind` does not exist next to `airflow\`.
 
-### 10.6 DAG
+### 10.6 Layered dbt DAGs
 
-`airflow/dags/dbt_glue_prod.py`
+The DAG definitions are in `airflow/dags/dbt_glue_dag.py`; Cosmos renders each selected
+dbt model and its applicable tests as Airflow tasks inside a `DbtTaskGroup`. Paths,
+selectors, Cosmos settings, retry settings, and DAG options are in
+`airflow/dags/dbt_dag_config.yml`. The configured profile path and target match this
+Compose setup. Change those YAML values if your container mounts or dbt target differ.
 
-```python
-from datetime import datetime
+The three independently triggerable DAGs are:
 
-from airflow import DAG
-from airflow.operators.bash import BashOperator
+1. `dbt_staging`: runs staging models and applicable tests.
+2. `dbt_intermediate`: runs intermediate models and applicable tests; it is triggered
+   only after staging succeeds.
+3. `dbt_marts`: runs dimension models before fact models; it is triggered only after
+   intermediate succeeds. Cautious indirect test selection prevents tests whose
+   dependencies have not yet been built from running early.
 
-PROJECT = "/opt/airflow/dbt/dbtbyaravind"
-ENV = {"DBT_SCHEMA": "dbt_prod"}   # other variables come from docker-compose
+All DAGs are manual by default (`schedule: null`). Unpause all three DAGs and trigger
+`dbt_staging` to start the full chain. You can also trigger an individual downstream
+DAG independently when its upstream tables are already available. The layer DAGs
+wait for each triggered DAG to finish, so a downstream failure also fails the
+upstream trigger task. Deferrable waiting uses the `airflow-triggerer` service, which
+is included in this Compose setup.
 
-with DAG(
-    "dbt_glue_prod",
-    start_date=datetime(2026, 11, 1),
-    schedule=None,          # change to "@daily" when ready
-    catchup=False,
-    tags=["dbt", "prod"],
-) as dag:
+Rebuild the Airflow image after changing the Dockerfile:
 
-    deps = BashOperator(
-        task_id="dbt_deps",
-        bash_command=f"cd {PROJECT} && dbt deps",
-        env=ENV, append_env=True,
-    )
-    build = BashOperator(
-        task_id="dbt_build",
-        bash_command=f"cd {PROJECT} && dbt build",
-        env=ENV, append_env=True,
-    )
-
-    deps >> build
+```powershell
+docker compose build
+docker compose up -d
 ```
 
-If the project has no `packages.yml`, remove the `deps` task. In the UI, unpause `dbt_glue_prod` and click Trigger. The `dbt_prod` database fills with tables. When you outgrow `BashOperator`, move to Astronomer Cosmos, which renders each dbt model as its own Airflow task.
+Cosmos uses the mounted Glue `profiles.yml` and local dbt execution. `install_deps`
+is false because the dbt packages are expected to be present in the mounted project;
+run `dbt deps` in that project after changing `packages.yml`. The configured retries
+and execution timeouts can be adjusted in YAML. Confirm that the configured dbt
+target and AWS credentials are appropriate before unpausing production runs.
 
 Stop everything with `docker compose down` when you finish.
 

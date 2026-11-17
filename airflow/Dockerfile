@@ -8,4 +8,10 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 USER airflow
-RUN pip install --no-cache-dir dbt-core dbt-glue
+ARG AIRFLOW_VERSION=2.9.3
+ARG PYTHON_VERSION=3.11
+RUN pip install --no-cache-dir \
+    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt" \
+    "astronomer-cosmos==1.10.2" \
+    dbt-core \
+    dbt-glue
