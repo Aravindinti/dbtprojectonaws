@@ -1,6 +1,14 @@
 version: 2
 
 sources:
+  - name: raw_source_for_project
+    schema: raw_source_for_project
+    tables:
+      - name: customers
+      - name: orders
+      - name: order_items
+      - name: products
+    
   - name: raw
     database: raw_db
     schema: raw_db
