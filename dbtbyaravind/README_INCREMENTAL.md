@@ -74,9 +74,10 @@ What happens:
 `incremental_strategy` decides how the new batch is written into the existing
 table. Your `is_incremental()` filter decides which rows are selected.
 
-For dbt-glue the documented strategies are `append`, `insert_overwrite` and
-`merge`. The docs on one page disagree about the default, so always set
-`incremental_strategy` explicitly.
+Supported strategies depend on the dbt-glue version. This project uses
+dbt-glue 1.12.4, whose incremental macros generate `MERGE INTO` for Iceberg
+and support `append`, `insert_overwrite` and `merge`. Always verify adapter
+support and set `incremental_strategy` explicitly.
 
 ### Running example
 
@@ -109,8 +110,9 @@ Atomic `MERGE`: matches on `unique_key`, updates matches, inserts the rest.
 
 - Result: orders 1, 2, 3 (95), 4. No duplicates.
 - Use for: mutable data such as orders, customers and CDC feeds.
-- Requires a table format with row-level updates. On Glue that means Hudi or
-  Iceberg. Plain Parquet does not work.
+- Requires a table format with row-level updates. This project's installed
+  dbt-glue adapter supports Iceberg `MERGE INTO`; other adapter versions may
+  differ. Plain Parquet does not support row-level merge.
 - Without a `unique_key` it behaves like `append`.
 - The key must be unique in the incoming batch. Deduplicate with
   `row_number()` first if needed.
@@ -120,7 +122,7 @@ Atomic `MERGE`: matches on `unique_key`, updates matches, inserts the rest.
     materialized='incremental',
     incremental_strategy='merge',
     unique_key='order_id',
-    file_format='hudi'   -- or iceberg
+    file_format='iceberg'
 ) }}
 ```
 
@@ -314,6 +316,33 @@ tasks and hooks for things that must happen on every run.
 6. Verify in your dbt version which commands trigger hooks instead of assuming.
 
 ---
+
+## Implemented project pattern
+
+`models/marts/facts/fact_sales.sql` uses an Iceberg incremental `merge` with
+`order_id` and `product_id` as its composite key. The query uses `{{ this }}`
+to find the current maximum `order_date` and reprocesses a configurable
+seven-day lookback (`fact_sales_lookback_days`). This makes reruns idempotent
+and lets recent corrections be merged into existing rows. The
+`dbt_utils.unique_combination_of_columns` tests on `int_sales` and `fact_sales`
+enforce that the key is unique in both the incoming data and target.
+
+The raw sources currently expose no reliable ingestion/update timestamp. A
+business-date lookback cannot detect changes older than its window; use
+`dbt run --full-refresh --select +fact_sales` to rebuild the fact and its dbt
+parents for those corrections, or add a source ingestion timestamp/change-data
+feed before relying on a strict watermark.
+
+The project has `on-run-start` and `on-run-end` logging hooks. The fact model's
+post-hook runs `ANALYZE TABLE {{ this }} COMPUTE STATISTICS` so Spark can use
+table statistics for query planning. Since hooks run against Glue, confirm
+permissions and Spark support in the active runtime before deployment.
+
+An idempotent model pre-hook creates each Iceberg namespace with
+`CREATE NAMESPACE IF NOT EXISTS glue_catalog.<schema>`. This is needed because
+the dbt-glue schema setup can fail to create the Glue database for a
+catalog-qualified schema; the pre-hook makes the required namespace explicit
+before the model writes its table.
 
 ## 6. Practice plan
 

@@ -17,6 +17,15 @@ seed-paths: ["seeds"]
 macro-paths: ["macros"]
 snapshot-paths: ["snapshots"]
 
+vars:
+  fact_sales_lookback_days: 7
+
+on-run-start:
+  - "{{ log('Starting dbt invocation for target ' ~ target.name, info=True) }}"
+
+on-run-end:
+  - "{{ log_dbt_run_results(results) }}"
+
 clean-targets:         # directories to be removed by `dbt clean`
   - "target"
   - "dbt_packages"
@@ -31,6 +40,7 @@ clean-targets:         # directories to be removed by `dbt clean`
 models:
   dbtbyaravind:
     +file_format: iceberg
+    +pre-hook: "{{ iceberg_namespace_sql(this.schema) }}"
     # Config indicated by + and applies to all files under models/example/
     #first level of assign config for models
     bronze:

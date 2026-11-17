@@ -12,7 +12,7 @@
     {%- endif -%}
 
     {%- set iceberg_catalog = target.get('custom_iceberg_catalog_namespace') or 'glue_catalog' -%}
-    {%- if node is not none and node.resource_type == 'model' and iceberg_catalog -%}
+    {%- if node is not none and node.resource_type == 'model' -%}
         {%- if schema_name.startswith(iceberg_catalog ~ '.') -%}
             {{ schema_name }}
         {%- else -%}
