@@ -57,6 +57,7 @@ x-airflow-common:
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
     AWS_DEFAULT_REGION: us-east-1
     DBT_PROFILES_DIR: /opt/airflow/dbt
+    DBT_TARGET_PATH: /opt/airflow/dbt/dbtbyaravind/target/airflow
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
     AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
     AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
@@ -191,6 +192,18 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
+  dbt-manifest:
+    <<: *airflow-common
+    entrypoint: dbt
+    command:
+      - parse
+      - --project-dir
+      - /opt/airflow/dbt/dbtbyaravind
+      - --profiles-dir
+      - /opt/airflow/dbt
+      - --target
+      - dev
+
   airflow-init:
     <<: *airflow-common
     entrypoint: /bin/bash
@@ -254,6 +267,10 @@ services:
     user: "0:0"
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}:/sources
+    depends_on:
+      <<: *airflow-common-depends-on
+      dbt-manifest:
+        condition: service_completed_successfully
 
   airflow-cli:
     <<: *airflow-common

@@ -493,17 +493,28 @@ RUN apt-get update \
 USER airflow
 ARG AIRFLOW_VERSION=2.9.3
 ARG PYTHON_VERSION=3.11
+ARG DBT_CORE_VERSION=1.12.6
+ARG DBT_GLUE_VERSION=1.12.4
 RUN pip install --no-cache-dir \
     --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt" \
-    "astronomer-cosmos==1.10.2" \
-    dbt-core \
-    dbt-glue
+    "astronomer-cosmos==1.10.2"
+
+RUN python -m venv /home/airflow/dbt-venv \
+    && /home/airflow/dbt-venv/bin/pip install --no-cache-dir \
+        "dbt-core==${DBT_CORE_VERSION}" \
+        "dbt-glue==${DBT_GLUE_VERSION}"
+
+ENV PATH="/home/airflow/dbt-venv/bin:${PATH}"
+
+RUN /usr/local/bin/python -c "from cosmos import DbtTaskGroup; print('Cosmos DbtTaskGroup is available')" \
+    && dbt --version
 ```
 
 `git` is installed because the Airflow image does not include it, and `dbt debug`
 reports `git [ERROR]` without it (and `dbt deps` fails for git-based packages).
-Cosmos is pinned, and the Airflow constraints file protects the image's Airflow
-dependency versions during package installation.
+Cosmos and dbt are pinned. The Airflow constraints file protects Airflow dependencies
+when installing Cosmos; dbt is installed in its own virtual environment at
+`/home/airflow/dbt-venv` so its dependencies do not conflict with Airflow.
 
 ### 10.3 Edit `docker-compose.yaml`
 
@@ -541,23 +552,80 @@ The left side of the first mount is the folder on your PC. The right side is the
 ### 10.4 Build and start
 
 ```powershell
+cd C:\Users\HP\Downloads\dbtprojectonaws\airflow
 docker compose build
 docker compose up airflow-init
-docker compose up -d
+docker compose up -d --force-recreate
 ```
 
-Open http://localhost:8080 (login `airflow` / `airflow`).
+Open http://localhost:8090 (login `airflow` / `airflow`).
 
-After changing volumes or environment, run `docker compose up -d` again to recreate containers. A plain restart does not apply the change.
+The image build checks `from cosmos import DbtTaskGroup`; the build should fail if
+Cosmos is not installed. All Airflow services use the same `airflow-dbt:latest` image.
+After changing the Dockerfile, rebuild the image and recreate containers as shown
+above. A plain restart does not replace an old container image.
+Before Airflow initializes, Compose runs the `dbt-manifest` service to generate
+the dbt manifest used by Cosmos for fast DAG parsing. Airflow writes dbt artifacts
+to `dbtbyaravind/target/airflow`, separate from the host's default `target` folder;
+this avoids incompatible parser caches when Windows and Linux share the project
+directory.
 
 ### 10.5 Verify dbt inside the container
 
 ```powershell
+docker compose exec airflow-scheduler /usr/local/bin/python -c "from cosmos import DbtTaskGroup; print('Cosmos OK')"
 docker compose exec airflow-scheduler dbt --version
 docker compose exec airflow-scheduler bash -c "cd /opt/airflow/dbt/dbtbyaravind && dbt debug"
 ```
 
-Expect `profiles.yml file [OK found and valid]`, `git [OK found]` and `Connection test: [OK connection ok]`.
+Expect `Cosmos OK`, `profiles.yml file [OK found and valid]`, `git [OK found]`
+and `Connection test: [OK connection ok]`.
+
+To run dbt from the host PowerShell while your current directory is `airflow\`, pass
+the dbt project and profile paths explicitly:
+
+```powershell
+dbt build --project-dir ..\dbtbyaravind --profiles-dir .\dbt_profiles --target dev
+```
+
+Or run it inside the scheduler container:
+
+```powershell
+docker compose exec airflow-scheduler dbt build --project-dir /opt/airflow/dbt/dbtbyaravind --profiles-dir /opt/airflow/dbt --target dev
+```
+
+Running plain `dbt build` from `airflow\` looks for `airflow\dbt_project.yml`,
+which does not exist. The dbt project is in the sibling `dbtbyaravind\` directory.
+If you see a `KeyError` for a macro path such as `dbtbyaravind://macros\\multiply.sql`,
+refresh the host parser cache once before building:
+
+```powershell
+dbt parse --project-dir ..\dbtbyaravind --profiles-dir .\dbt_profiles --target dev --no-partial-parse
+```
+
+The host and Airflow now use separate dbt target directories, so they will not
+overwrite each other's manifest or partial-parse cache.
+
+If the Cosmos import still fails, run these commands from `airflow\` and check
+that Compose reports the scheduler using the `airflow-dbt:latest` image:
+
+```powershell
+docker compose build --no-cache airflow-scheduler airflow-worker airflow-webserver airflow-triggerer airflow-cli
+docker compose up -d --force-recreate
+docker compose exec airflow-scheduler /usr/local/bin/python -m pip show astronomer-cosmos
+docker compose exec airflow-scheduler /usr/local/bin/python -c "from cosmos import DbtTaskGroup; print('Cosmos OK')"
+```
+
+`airflow/dags/.airflowignore` excludes the old duplicate `dbt_glue_dag2.py` example
+so Airflow does not attempt to load a second copy of the dbt DAG.
+
+After changing dbt models or selectors, refresh the manifest and restart the
+scheduler so Cosmos renders the updated graph:
+
+```powershell
+docker compose run --rm dbt-manifest
+docker compose restart airflow-scheduler
+```
 
 If the folder is missing, inspect what the container sees:
 

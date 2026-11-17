@@ -17,7 +17,7 @@ dbt:
   executable_path: dbt
   execution_mode: local
   invocation_mode: subprocess
-  load_method: dbt_ls
+  load_method: dbt_manifest
   test_behavior: after_each
   test_indirect_selection: cautious
   install_deps: false

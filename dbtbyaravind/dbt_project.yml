@@ -16,6 +16,7 @@ test-paths: ["tests"]
 seed-paths: ["seeds"]
 macro-paths: ["macros"]
 snapshot-paths: ["snapshots"]
+target-path: "{{ env_var('DBT_TARGET_PATH', 'target') }}"
 
 vars:
   fact_sales_lookback_days: 7

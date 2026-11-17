@@ -124,6 +124,7 @@ def _dbt_task_group(group_id, selector):
         group_id=group_id,
         project_config=ProjectConfig(
             dbt_project_path=DBT["project_dir"],
+            manifest_path=Path(DBT["project_dir"]) / "target" / "airflow" / "manifest.json",
             install_dbt_deps=DBT["install_deps"],
         ),
         profile_config=ProfileConfig(
@@ -140,6 +141,7 @@ def _dbt_task_group(group_id, selector):
         render_config=RenderConfig(
             select=[selector],
             load_method=LoadMode(DBT["load_method"]),
+            invocation_mode=InvocationMode(DBT["invocation_mode"]),
             test_behavior=TestBehavior(DBT["test_behavior"]),
             dbt_executable_path=DBT["executable_path"],
             enable_mock_profile=False,
