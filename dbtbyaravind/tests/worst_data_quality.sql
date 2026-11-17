@@ -1,2 +1,3 @@
-select * from {{ref("bronze_orders")}} where amount < 1
-
+select *
+from {{ ref('fact_sales') }}
+where sales_amount < 1

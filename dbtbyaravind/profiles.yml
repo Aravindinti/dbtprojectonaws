@@ -14,6 +14,7 @@ dbtbyaravind:
       session_provisioning_timeout_in_seconds: 180
       location: s3://my-dbt-lab-aravind/dbt/
       datalake_formats: iceberg
+      custom_iceberg_catalog_namespace: glue_catalog
       conf: >-
         --conf spark.sql.legacy.allowNonEmptyLocationInCTAS=true
         --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions

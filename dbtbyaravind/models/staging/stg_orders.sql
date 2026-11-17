@@ -5,4 +5,5 @@ SELECT
     TRY_CAST(orderdate AS DATE)    AS order_date,
     UPPER(TRIM(status))       AS order_status
 FROM {{ source('raw_source_for_project', 'orders') }}
-where orderid is not null
+WHERE TRY_CAST(orderid AS BIGINT) IS NOT NULL
+  AND TRY_CAST(customerid AS BIGINT) IS NOT NULL
