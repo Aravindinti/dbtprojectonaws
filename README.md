@@ -568,15 +568,16 @@ docker compose exec airflow-scheduler ls /opt/airflow/dbt/dbtbyaravind
 
 An empty folder means the host path `..\dbtbyaravind` does not exist next to `airflow\`.
 
-### 10.6 Layered dbt DAGs
+### 10.6 Layered and single-model dbt DAGs
 
-The DAG definitions are in `airflow/dags/dbt_glue_dag.py`; Cosmos renders each selected
-dbt model and its applicable tests as Airflow tasks inside a `DbtTaskGroup`. Paths,
-selectors, Cosmos settings, retry settings, and DAG options are in
+The orchestration is split between `airflow/dags/dbt_glue_dag.py` and
+`airflow/dags/dbt_dag_helpers.py`. Cosmos renders each layer's selected dbt models
+and applicable tests as Airflow tasks inside a `DbtTaskGroup`. Paths, selectors,
+Cosmos settings, retry settings, and DAG options are in
 `airflow/dags/dbt_dag_config.yml`. The configured profile path and target match this
 Compose setup. Change those YAML values if your container mounts or dbt target differ.
 
-The three independently triggerable DAGs are:
+The four independently triggerable DAGs are:
 
 1. `dbt_staging`: runs staging models and applicable tests.
 2. `dbt_intermediate`: runs intermediate models and applicable tests; it is triggered
@@ -584,13 +585,24 @@ The three independently triggerable DAGs are:
 3. `dbt_marts`: runs dimension models before fact models; it is triggered only after
    intermediate succeeds. Cautious indirect test selection prevents tests whose
    dependencies have not yet been built from running early.
+4. `dbt_run_single_model`: runs one model chosen when triggering the DAG. In the
+   Airflow UI, open **Trigger DAG**, set `model_name` to a dbt model name such as
+   `stg_orders` or `fact_sales`, and trigger the run. The default is
+   `stg_customers`; change it before triggering if you want another model.
 
-All DAGs are manual by default (`schedule: null`). Unpause all three DAGs and trigger
-`dbt_staging` to start the full chain. You can also trigger an individual downstream
-DAG independently when its upstream tables are already available. The layer DAGs
-wait for each triggered DAG to finish, so a downstream failure also fails the
-upstream trigger task. Deferrable waiting uses the `airflow-triggerer` service, which
-is included in this Compose setup.
+The single-model DAG builds only the selected model and its applicable tests; it does
+not automatically build that model's upstream dependencies. Run upstream layers first
+if the referenced tables do not exist. The model name is validated and scoped to dbt
+models. Cosmos renders task groups when Airflow parses the DAG, so a trigger-time
+model choice is implemented as one validated dbt command instead of trying to
+dynamically re-render a Cosmos task group.
+
+All four DAGs are manual by default (`schedule: null`). Unpause the three layer DAGs
+and trigger `dbt_staging` to start the full chain. Trigger `dbt_run_single_model`
+separately to run one model, or trigger an individual downstream layer when its
+upstream tables are already available. Layer DAGs wait for the next DAG to finish,
+so a downstream failure also fails the upstream trigger task. Deferrable waiting
+uses the `airflow-triggerer` service, which is included in this Compose setup.
 
 Rebuild the Airflow image after changing the Dockerfile:
 

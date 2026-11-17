@@ -1,0 +1,43 @@
+defaults:
+  owner: airflow
+  start_date: "2026-11-01"
+  schedule: null
+  catchup: false
+  retries: 2
+  retry_delay_minutes: 5
+  execution_timeout_minutes: 180
+  dagrun_timeout_minutes: 360
+  max_active_runs: 1
+
+dbt:
+  project_dir: /opt/airflow/dbt/dbtbyaravind
+  profiles_dir: /opt/airflow/dbt
+  profile_name: dbtbyaravind
+  target: dev
+  executable_path: dbt
+  execution_mode: local
+  invocation_mode: subprocess
+  load_method: dbt_ls
+  test_behavior: after_each
+  test_indirect_selection: cautious
+  install_deps: false
+
+pipelines:
+  staging:
+    dag_id: dbt_staging
+    selector: path:models/staging
+    next_dag: dbt_intermediate
+
+  intermediate:
+    dag_id: dbt_intermediate
+    selector: path:models/intermediate
+    next_dag: dbt_marts
+
+  marts:
+    dag_id: dbt_marts
+    dimensions_selector: path:models/marts/dimensions
+    facts_selector: path:models/marts/facts
+
+  single_model:
+    dag_id: dbt_run_single_model
+    default_model: stg_customers
