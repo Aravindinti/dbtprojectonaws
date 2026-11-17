@@ -1,0 +1,22 @@
+dag:
+  dag_id: dbt_staging_sequential
+  description: Run staging models sequentially.
+  start_date: "2026-11-01"
+  schedule: null
+  catchup: false
+  retries: 2
+  retry_delay_minutes: 5
+  max_active_runs: 1
+
+dbt:
+  project_dir: /opt/airflow/dbt/dbtbyaravind
+  profiles_dir: /opt/airflow/dbt
+  target: dev
+  executable: dbt
+  indirect_selection: cautious
+
+staging_models:
+  - stg_customers
+  - stg_products
+  - stg_orders
+  - stg_order_items

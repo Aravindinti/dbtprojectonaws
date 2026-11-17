@@ -577,7 +577,7 @@ Cosmos settings, retry settings, and DAG options are in
 `airflow/dags/dbt_dag_config.yml`. The configured profile path and target match this
 Compose setup. Change those YAML values if your container mounts or dbt target differ.
 
-The four independently triggerable DAGs are:
+The four main independently triggerable DAGs are:
 
 1. `dbt_staging`: runs staging models and applicable tests.
 2. `dbt_intermediate`: runs intermediate models and applicable tests; it is triggered
@@ -597,12 +597,27 @@ models. Cosmos renders task groups when Airflow parses the DAG, so a trigger-tim
 model choice is implemented as one validated dbt command instead of trying to
 dynamically re-render a Cosmos task group.
 
-All four DAGs are manual by default (`schedule: null`). Unpause the three layer DAGs
+The four main DAGs are manual by default (`schedule: null`). Unpause the three layer DAGs
 and trigger `dbt_staging` to start the full chain. Trigger `dbt_run_single_model`
 separately to run one model, or trigger an individual downstream layer when its
 upstream tables are already available. Layer DAGs wait for the next DAG to finish,
 so a downstream failure also fails the upstream trigger task. Deferrable waiting
 uses the `airflow-triggerer` service, which is included in this Compose setup.
+
+### 10.7 Standalone sequential staging DAG
+
+`airflow/dags/basic/staging_only_dag.py` is a separate, basic DAG that runs only the
+staging models. It runs them in the order listed in
+`airflow/dags/basic/staging_dag_config.yml`:
+
+1. `stg_customers`
+2. `stg_products`
+3. `stg_orders`
+4. `stg_order_items`
+
+Each task runs `dbt build` for one model and its applicable tests. A task starts only
+after the previous model succeeds; failures stop the sequence. This DAG does not
+trigger intermediate or marts. Trigger `dbt_staging_sequential` in Airflow to run it.
 
 Rebuild the Airflow image after changing the Dockerfile:
 
